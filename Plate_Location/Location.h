@@ -133,7 +133,10 @@ private:
 		{ 1, 0 },{ 1, -1 },{ 0, -1 },{ -1, -1 },
 		{ -1, 0 },{ -1,  1 },{ 0,  1 },{ 1,  1 } };
 	int chain_code[MAX_CNTR];
-
+	int **blue;
+	int **white;
+	//int blue[3000][3000] = { 0 };
+	//int white[3000][3000] = { 0 };
 	Mat srcBlur;
 
 	int Color_Mark[MAX_COLS][MAX_ROWS];

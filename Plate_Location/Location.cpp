@@ -18,14 +18,14 @@ const double WEIGHT_ONE = 0.33748;
 const double WEIGHT_TWO = 0.66252;
 const double AIM_WEIGHT = 0.7;
 const double DEGREE_WEIGHT = 0.6;
-
+#define AREASIZE 5
 
 CLocation::CLocation(Mat src, string name)
 {
 	/*m_srcImg.create(600, 800, TYPE);
 	resize(src, m_srcImg, m_srcImg.size(), 0, 0, INTER_CUBIC);*/
-	m_srcImg = src;
-	m_deBug = 0;
+	m_srcImg = src.clone();
+	m_deBug = 1;
 	m_ImgName = name;
 	m_dstImg = m_srcImg.clone();
 	m_MorphSizeWidth = DEFAULT_MORPH_SIZE_WIDTH;
@@ -47,10 +47,17 @@ CLocation::CLocation(Mat src, string name)
 	m_CharNum = 0;
 	m_RuleDegree = 0;
 	//输出储存地址
-	m_OutAddressFirst = "./src/out/";
+	m_OutAddressFirst = "./src/Img_out/";
 	//地址+文件名
 	strcpy(m_OutAddress, (m_OutAddressFirst + m_ImgName).c_str());
 	m_aimWeight = AIM_WEIGHT;
+	blue = new int *[m_rows];
+	white = new int *[m_rows];
+	for (int i = 0; i < m_rows; i++)
+	{
+		white[i] = new int[m_cols]();
+		blue[i] = new int[m_cols]();
+	}
 }
 
 
@@ -437,8 +444,10 @@ bool CLocation::ContourSearch(Mat src)
 
 		Mat TempDst;
 		cvtColor(resultVec[k], TempDst, CV_BGR2GRAY);
-
-		int graySum = 0;
+		//threshold(TempDst, TempDst, 0, 255, CV_THRESH_OTSU + CV_THRESH_BINARY); //二值化
+		//imshow("da前", TempDst);
+		//waitKey(0);
+		/*int graySum = 0;
 		for (int i = 1; i < TempDst.rows; i++)
 		{
 			for (int j = 1; j < TempDst.cols; j++)
@@ -464,10 +473,10 @@ bool CLocation::ContourSearch(Mat src)
 				}
 			}
 		}
-
+		*/
 		threshold(TempDst, TempDst, 0, 255, CV_THRESH_OTSU + CV_THRESH_BINARY); //二值化
-	//	imshow("da", TempDst);
-	//	waitKey(0);
+		imshow("da", TempDst);
+		waitKey(0);
 		// 进行车牌特征值计算
 		double Degree = VerticalProjection(TempDst);
 
@@ -483,15 +492,14 @@ bool CLocation::ContourSearch(Mat src)
 		if (resultVec.size() != 0)
 		{
 			imshow("result", resultVec[LastKey]);
-			cvWaitKey(0);
+			cvWaitKey(0); 
 		}
 	}
 	//imshow("Last", resultVec[LastKey]);
-	if (DegreeMax != -1 || LastKey != -1)
+	if ((DegreeMax != -1 || LastKey != -1 )&& DegreeMax>0.2)
 	{
 		IplImage qImg = IplImage(resultVec[LastKey]); // cv::Mat -> IplImage
 		cvSaveImage(m_OutAddress, &qImg);
-		printf("成功\n");
 		vector< vector< Point> >().swap(contours);
 		vector< RotatedRect >().swap(rects);
 		vector< Mat >().swap(resultVec);
@@ -500,7 +508,6 @@ bool CLocation::ContourSearch(Mat src)
 	vector< vector< Point> >().swap(contours);
 	vector< RotatedRect >().swap(rects);
 	vector< Mat >().swap(resultVec);
-	printf("失败\n");
 	return false;
 
 
@@ -546,14 +553,16 @@ double CLocation::VerticalProjection(Mat src)
 	for (int j = 1; j < src.cols; j++)
 	{
 		//舍弃上下20% 只取中间60%做统计
-		for (int i = 1 + 0.2*src.rows; i < src.rows*(1 - 0.2); i++)
+		for (int i = 1 + 0.1*src.rows; i < src.rows*(1 - 0.25); i++)
 		{
 			if ((int)src.at<uchar>(i, j) > 0)
 			{
 				m_Projection[j]++;
 			}
 		}
+		cout << m_Projection[j];
 	}
+	cout << endl;
 	bool CharState = false;
 	int *m_CharWidth = new int[src.cols]();
 	m_CharNum = 0;
@@ -582,7 +591,8 @@ double CLocation::VerticalProjection(Mat src)
 		else if (m_CharWidth[i] < wid / 3 || m_CharWidth[i] > wid * 1.5)
 			TempNum++;
 	}
-	if (LastNum < 7)
+	cout << LastNum << " " << TempNum << endl;
+  	if (LastNum < 5)
 		m_RuleDegree = 0;
 	else
 	{
@@ -590,6 +600,7 @@ double CLocation::VerticalProjection(Mat src)
 		//	1 - 0.6*(abs(7 - LastNum)) / max(7, LastNum) - 0.4*(TempNum / LastNum);
 		m_RuleDegree = 1 - DEGREE_WEIGHT*(abs(DEFAULT_CHAR_NUM - LastNum) *1.0 / max(DEFAULT_CHAR_NUM, LastNum)) - (1 - DEGREE_WEIGHT)*(TempNum *1.0 / LastNum);
 	}
+	cout << LastNum << " " << TempNum << " "<<m_RuleDegree<< endl;
 	return m_RuleDegree;
 }
 
@@ -719,80 +730,82 @@ int CLocation::ContourMarking(int x_start, int y_start, Mat src)
 bool CLocation::Color_Contour()
 {
 	
-	Mat dst = m_srcImg.clone();
+	//Mat dst = m_srcImg.clone();
+	Mat dst(m_rows, m_cols, CV_8UC1, Scalar(0));
 	GaussianBlur(m_srcImg, srcBlur, Size(3, 3), 0, 0, BORDER_DEFAULT);
 	//cvtColor(src, srcHSV, CV_BGR2HSV);
 	int H, S, V;
-	for (int i = 1; i < m_rows - 2; i++)
+	for (int i = AREASIZE; i < m_rows; i++)
 	{
-		for (int j = 1; j < m_cols - 2; j++)
+		for (int j = AREASIZE; j < m_cols; j++)
 		{
-			//H = (int)srcHSV.at<Vec3b>(i, j)[0];
-			//S = (int)srcHSV.at<Vec3b>(i, j)[1];
-			//V = (int)srcHSV.at<Vec3b>(i, j)[2];
 			bool blue_status = false;
 			bool white_status = false;
-			for (int x = -1; x <= 1; x += 2)
-			{
-				int blue_count = 0;
-				int white_count = 0;
 
-				//for (int y = -1; y <= 0; y++)
-				{
-					if (Blue_Judge(i, j + x) && !blue_status)
-						blue_count++;
-					if (White_Judge(i, j + x) && !white_status)
-						white_count++;
-				}
-				if (blue_count >= 1)
-					blue_status = true;
-				if (white_count >= 1)
-					white_status = true;
-			}
+			if (Blue_Judge(i, j))
+				blue[i][j] = blue[i - 1][j] + blue[i][j - 1] - blue[i-1][j-1] + 1;
+			else
+				blue[i][j] = blue[i - 1][j] + blue[i][j - 1] - blue[i - 1][j - 1];
+
+
+			if (White_Judge(i, j))
+				white[i][j] = white[i - 1][j] + white[i][j - 1] - white[i - 1][j - 1] + 1;
+			else
+				white[i][j] = white[i - 1][j] + white[i][j - 1] - white[i - 1][j - 1];
+
+
+			if (blue[i][j] - blue[i][j - AREASIZE] - blue[i - AREASIZE][j] + blue[i - AREASIZE][j - AREASIZE]>0) // i-AREASIZE/2, j-AREASIZE/2 点的蓝色点数量
+				blue_status = true;
+
+
+			if (white[i][j] - white[i][j - AREASIZE] - white[i - AREASIZE][j] + white[i - AREASIZE][j - AREASIZE]>0) // i-AREASIZE/2, j-AREASIZE/2 点的蓝色点数量
+				white_status = true;
+
+
 			if (blue_status&&white_status)
 			{
-				//for (int x = -1; x <= 1; x++)
-				{
-					for (int y = -1; y <= 1; y++)
-					{
-						Color_Mark[i + y][j] = 1;
-						dst.at<Vec3b>(i + y, j)[0] = 255;
-						dst.at<Vec3b>(i + y, j)[1] = 255;
-						dst.at<Vec3b>(i + y, j)[2] = 255;
-					}
-				}
-				//	cout << i << " " << j << endl;
+				Color_Mark[i][j] = 1;
+				//dst.at<Vec3b>(i , j )[0] = 255;
+				//dst.at<Vec3b>(i , j )[1] = 255;
+				//dst.at<Vec3b>(i , j )[2] = 255;
+				dst.at<uchar>(i, j) = 255;
 			}
 			else
 			{
-				for (int y = -1; y <= 1; y++)
-				{
-					Color_Mark[i + y][j] = 0;
-					dst.at<Vec3b>(i + y, j)[0] = 0;
-					dst.at<Vec3b>(i + y, j)[1] = 0;
-					dst.at<Vec3b>(i + y, j)[2] = 0;
-				}
+				Color_Mark[i][j] = 0;
+				//dst.at<Vec3b>(i, j)[0] = 0;
+				//dst.at<Vec3b>(i, j)[1] = 0;
+				//dst.at<Vec3b>(i, j)[2] = 0;
 			}
 		}
 	}
-	imshow("test0", dst);
-	cvWaitKey(0);
-	cvtColor(dst, dst, CV_RGB2GRAY);
-	threshold(dst, dst, 0, 255, CV_THRESH_OTSU + CV_THRESH_BINARY);
+	
+	if (m_deBug)
+	{
+		imshow("test0", dst);
+		cvWaitKey(0);
+	}
+	//cvtColor(dst, dst, CV_RGB2GRAY);
+	//threshold(dst, dst, 0, 255, CV_THRESH_OTSU + CV_THRESH_BINARY);
 	Mat element = getStructuringElement(MORPH_RECT, Size(25, 5)); //设置横向25*2矩形模版
 	morphologyEx(dst, dst, MORPH_CLOSE, element);			//形态学处理
-	imshow("形态学", dst);
-	cvWaitKey(0);
-	/*for (int i = 0; i < dst.rows; i++)
+
+	for (int i = 1; i < m_rows; i++)
 	{
-		for (int j = 0; j < dst.cols; j++)
+		for (int j = 1; j < m_cols; j++)
 		{
-			if ((int)dst.at<uchar>(i, j) == MAX_BRIGHTNESS)
-				image1[i][j] = 255;
+			if ((int)dst.at<uchar>(i, j) == 255 && 255 == (int)m_dstImg.at<uchar>(i, j))
+				dst.at<uchar>(i, j) = 255;
 			else
-				image1[i][j] = 0;
+				dst.at<uchar>(i, j) = 0;
 		}
-	}*/
+	}
+	dst = Morphological(dst);
+	if (m_deBug)
+	{
+		imshow("形态学", dst);
+		cvWaitKey(0);
+	}
 
 	if (ContourSearch(dst)) //筛选区域
 		return true;
@@ -803,21 +816,45 @@ bool CLocation::Color_Contour()
 
 bool CLocation::Blue_Judge(int x, int y)
 {
-	int b = srcBlur.at<Vec3b>(x, y)[0];
-	int g = srcBlur.at<Vec3b>(x, y)[1];
-	int r = srcBlur.at<Vec3b>(x, y)[2];
-	if (b *1.0> 1.4*g*1.0&&b*1.0 > 1.4*r*1.0&&b > 100)
+	double b = (double)srcBlur.at<Vec3b>(x, y)[0];
+	double g = (double)srcBlur.at<Vec3b>(x, y)[1];
+	double r = (double)srcBlur.at<Vec3b>(x, y)[2];
+	double h;
+	double numerator = (r - g + r - b) / 2;
+	double denominator = sqrt(pow((r - g), 2) + (r - b)*(g - b));
+	if (denominator == 0)
+		h = 0;
+	else
+		h = acos(numerator / denominator) * 180 / 3.14;
+	if (b > g)
+		h = 360 - h;
+	double s = 1 - (double)3.0*min(r, min(g, b)) / (r + g + b);
+	double i = (r + g + b) / 3;
+	//if(h>180&&h<300 && b > 50)
+	if (b *1.0> 1.4*g*1.0&&b*1.0 > 1.4*r*1.0&&b > 50)
 		return true;
 	return false;
 }
 
 bool CLocation::White_Judge(int x, int y)
 {
-	int b = (int)srcBlur.at<Vec3b>(x, y)[0];
-	int g = (int)srcBlur.at<Vec3b>(x, y)[1];
-	int r = (int)srcBlur.at<Vec3b>(x, y)[2];
-	double S = b + g + r;
-	if (b*1.0 < 0.4*S&&g*1.0 < 0.4*S&&r*1.0 < 0.4*S&&S>200)
+	double b = (double)srcBlur.at<Vec3b>(x, y)[0];
+	double g = (double)srcBlur.at<Vec3b>(x, y)[1];
+	double r = (double)srcBlur.at<Vec3b>(x, y)[2];
+	double h;
+	double numerator = (r - g + r - b) / 2;
+	double denominator = sqrt(pow((r - g), 2) + (r - b)*(g - b));
+	if (denominator == 0)
+		h = 0;
+	else
+		h = acos(numerator / denominator) * 180 / 3.14;
+	if (b > g)
+		h = 360 - h;
+	double s = 1 - (double)3.0*min(r, min(g, b)) / (r + g + b);
+	double i = (r + g + b) / 3;
+	if ((i >= 200 && i<250) || (s <= 0.25&&s >= 0)) //白色点判断
+													//double S = b + g + r;
+													//if (b*1.0 < 0.4*S&&g*1.0 < 0.4*S&&r*1.0 < 0.4*S&&S>150)
 		return true;
 	return false;
 }
