@@ -19,6 +19,9 @@ const double WEIGHT_TWO = 0.66252;
 const double AIM_WEIGHT = 0.7;
 const double DEGREE_WEIGHT = 0.6;
 #define AREASIZE 5
+#define MIN_CHAR_WIDTH 1//车牌字符的最小像素宽度（Char_Segment函数中）
+#define MAX_CUT 15//最大的分割数（ProjectionCut函数中）
+#define MAX_CONTINUOUS_PX_NUM 11//边框分离时检测横向连续像素为255的像素最大数目（DetectionChange函数）
 
 CLocation::CLocation(Mat src, string name)
 {
@@ -442,12 +445,24 @@ bool CLocation::ContourSearch(Mat src)
 	for (int k = 0; k < resultVec.size(); k++)
 	{
 
-		Mat TempDst;
+		Mat TempDst;/*(HEIGHT, WIDTH, CV_8UC1, Scalar(0));
+		for (int row = 0; row < HEIGHT; row++)
+		{
+			for (int col = 0; col < WIDTH; col++)
+			{
+				if (Blue_Judge(row, col, resultVec[k]))
+				{
+					TempDst.at<uchar>(row, col) = 255;
+				}
+			}
+		}*/
 		cvtColor(resultVec[k], TempDst, CV_BGR2GRAY);
+	//	dilate(TempDst, TempDst,Size(3,3));//膨胀
+	//	erode(TempDst, TempDst);//腐蚀
 		//threshold(TempDst, TempDst, 0, 255, CV_THRESH_OTSU + CV_THRESH_BINARY); //二值化
-		//imshow("da前", TempDst);
+	//	imshow("da前", resultVec[k]);
 		//waitKey(0);
-		/*int graySum = 0;
+		int graySum = 0;
 		for (int i = 1; i < TempDst.rows; i++)
 		{
 			for (int j = 1; j < TempDst.cols; j++)
@@ -473,12 +488,12 @@ bool CLocation::ContourSearch(Mat src)
 				}
 			}
 		}
-		*/
-		threshold(TempDst, TempDst, 0, 255, CV_THRESH_OTSU + CV_THRESH_BINARY); //二值化
+		
+		threshold(TempDst, TempDst, 0, 255, CV_THRESH_OTSU + CV_THRESH_BINARY); //二值化*/
 		imshow("da", TempDst);
 		waitKey(0);
 		// 进行车牌特征值计算
-		double Degree = VerticalProjection(TempDst);
+ 		double Degree = VerticalProjection(TempDst);
 
 		//车牌对应最大的特征值
 		if (Degree > DegreeMax)
@@ -492,14 +507,15 @@ bool CLocation::ContourSearch(Mat src)
 		if (resultVec.size() != 0)
 		{
 			imshow("result", resultVec[LastKey]);
-			cvWaitKey(0); 
+   			cvWaitKey(0); 
 		}
 	}
 	//imshow("Last", resultVec[LastKey]);
 	if ((DegreeMax != -1 || LastKey != -1 )&& DegreeMax>0.2)
 	{
-		IplImage qImg = IplImage(resultVec[LastKey]); // cv::Mat -> IplImage
-		cvSaveImage(m_OutAddress, &qImg);
+		imwrite(m_OutAddress, resultVec[LastKey]);
+		//IplImage qImg = IplImage(resultVec[LastKey]); // cv::Mat -> IplImage
+		//cvSaveImage(m_OutAddress, &qImg);
 		vector< vector< Point> >().swap(contours);
 		vector< RotatedRect >().swap(rects);
 		vector< Mat >().swap(resultVec);
@@ -548,6 +564,58 @@ bool CLocation::verifySizes(RotatedRect mr)
 
 double CLocation::VerticalProjection(Mat src)
 {
+	DetectionChange(src, src);//去边框
+	Point2f center = Point2f(src.cols / 2, src.rows / 2);  // 旋转中心
+	Mat rotateMat = getRotationMatrix2D(center, 180, 1);//旋转矩阵
+	warpAffine(src, src, rotateMat, src.size());//这是我的一个意外发现，目前没找到原因，就是我也不知道为什么在经
+	warpAffine(src, src, rotateMat, src.size());//过两次翻转（理论上相当于没有改变什么）后，分割正确率提高了。
+	imshow("边框分离", src);
+	cvWaitKey(0);
+	int reHeight = 30, reWidth = 100;//归一化处理的size
+	int *vArr = new int[reWidth];//创建投影数组
+
+	int **pic_Arr;//创建投影分割结果的起始点与结束点的记录数组
+				  //其中第二维只有两个数，第1个数表示开始位置，第2个数表示结束位置。
+	Mat img_4;
+	//归一化图片的大小。  便于处理
+	resize(src, img_4, Size(reWidth, reHeight));//归一化为re_Width*re_Height大小
+	ProjectionCalculate(img_4, vArr);//计算投影数组
+	int pic_ArrNumber;
+	pic_Arr = ProjectionCut(vArr, reWidth, pic_ArrNumber);//进行分割
+
+	Mat img_5;
+	IplImage pI_1 = img_4;
+	IplImage pI_2;
+	CvScalar s1;
+	int seg_num = 0;
+
+	char numchar[10];
+	Mat seg_perimg[10];
+	/*if (pic_ArrNumber < 7)
+	{
+		delete[] vArr;
+		free(pic_Arr);
+		return pic_ArrNumber;
+	}*/
+	int LastNum = pic_ArrNumber;
+	int TempNum = 0;
+	double wid = reWidth / 10;
+	for (int i = 0; i < pic_ArrNumber; i++)
+	{
+		int pic_width = pic_Arr[i][1] - pic_Arr[i][0];// 字符宽度 
+		/*if (pic_width <= MIN_CHAR_WIDTH&&pic_Arr[i][1] <= reWidth / 2 && pic_ArrNumber <= 3)
+		{
+			LastNum--;
+			continue;
+		}*/
+		if (pic_width < wid / 4)
+			LastNum--;
+		else if (pic_width < wid / 3 || pic_width > wid * 1.5)
+			TempNum++;
+	}
+
+
+/*
 	m_Projection = new int[src.cols]();
 	//memset(m_Projection, 0, sizeof(m_Projection));
 	for (int j = 1; j < src.cols; j++)
@@ -590,8 +658,8 @@ double CLocation::VerticalProjection(Mat src)
 			LastNum--;
 		else if (m_CharWidth[i] < wid / 3 || m_CharWidth[i] > wid * 1.5)
 			TempNum++;
-	}
-	cout << LastNum << " " << TempNum << endl;
+	}*/
+	
   	if (LastNum < 5)
 		m_RuleDegree = 0;
 	else
@@ -742,13 +810,13 @@ bool CLocation::Color_Contour()
 			bool blue_status = false;
 			bool white_status = false;
 
-			if (Blue_Judge(i, j))
+			if (Blue_Judge(i, j,srcBlur))
 				blue[i][j] = blue[i - 1][j] + blue[i][j - 1] - blue[i-1][j-1] + 1;
 			else
 				blue[i][j] = blue[i - 1][j] + blue[i][j - 1] - blue[i - 1][j - 1];
 
 
-			if (White_Judge(i, j))
+			if (White_Judge(i, j,srcBlur))
 				white[i][j] = white[i - 1][j] + white[i][j - 1] - white[i - 1][j - 1] + 1;
 			else
 				white[i][j] = white[i - 1][j] + white[i][j - 1] - white[i - 1][j - 1];
@@ -814,11 +882,11 @@ bool CLocation::Color_Contour()
 
 }
 
-bool CLocation::Blue_Judge(int x, int y)
+bool CLocation::Blue_Judge(int x, int y, Mat &temp)
 {
-	double b = (double)srcBlur.at<Vec3b>(x, y)[0];
-	double g = (double)srcBlur.at<Vec3b>(x, y)[1];
-	double r = (double)srcBlur.at<Vec3b>(x, y)[2];
+	double b = (double)temp.at<Vec3b>(x, y)[0];
+	double g = (double)temp.at<Vec3b>(x, y)[1];
+	double r = (double)temp.at<Vec3b>(x, y)[2];
 	double h;
 	double numerator = (r - g + r - b) / 2;
 	double denominator = sqrt(pow((r - g), 2) + (r - b)*(g - b));
@@ -836,11 +904,11 @@ bool CLocation::Blue_Judge(int x, int y)
 	return false;
 }
 
-bool CLocation::White_Judge(int x, int y)
+bool CLocation::White_Judge(int x, int y,Mat &temp)
 {
-	double b = (double)srcBlur.at<Vec3b>(x, y)[0];
-	double g = (double)srcBlur.at<Vec3b>(x, y)[1];
-	double r = (double)srcBlur.at<Vec3b>(x, y)[2];
+	double b = (double)temp.at<Vec3b>(x, y)[0];
+	double g = (double)temp.at<Vec3b>(x, y)[1];
+	double r = (double)temp.at<Vec3b>(x, y)[2];
 	double h;
 	double numerator = (r - g + r - b) / 2;
 	double denominator = sqrt(pow((r - g), 2) + (r - b)*(g - b));
@@ -857,4 +925,174 @@ bool CLocation::White_Judge(int x, int y)
 													//if (b*1.0 < 0.4*S&&g*1.0 < 0.4*S&&r*1.0 < 0.4*S&&S>150)
 		return true;
 	return false;
+}
+
+/******************************************************************
+Function: detectionChange(Mat& mat1, Mat& dst, int number)
+Description:  分离去除边框
+Calls:
+Called By: Char_Segment(IplImage* Srcimg)
+intput:	param@1 :Mat& mat1		输入二值化后图像
+param@2 :Mat& dst		输出分离去除边框后的图像
+Output:
+Return: Mat& dst 输出分离去除边框后的图像
+*******************************************************************/
+void CLocation::DetectionChange(Mat& mat1, Mat& dst)
+{
+	IplImage pI_1 = mat1, pI_2;
+	CvScalar s1, s2;
+	int height = mat1.rows;
+	int width = mat1.cols;
+	int sum_1 = 0, sum_2 = 0, width_1 = 0, width_2 = 0;
+	int i, j;
+	for (i = 0; i < height; i++)
+	{
+		sum_1 = 0;
+		sum_2 = 0;
+		for (j = 0; j < width - 1; j++)
+		{
+			s1 = cvGet2D(&pI_1, i, j);
+			s2 = cvGet2D(&pI_1, i, j + 1);
+			if (((int)s1.val[0]) != ((int)s2.val[0]))
+			{
+				sum_1++;
+				sum_2 = 0;
+			}
+			else
+			{
+				sum_2++;
+			}
+			if (sum_2 > width / 5)//保证可以检测到超过5个轮廓
+			{
+				sum_1 = 0;
+				break;
+			}
+		}
+		width_1 = i;
+		if (sum_1 >= MAX_CONTINUOUS_PX_NUM)
+		{
+			break;
+		}
+	}
+
+	for (i = height - 1; i > 0; i--)
+	{
+		sum_1 = 0;
+		sum_2 = 0;
+		for (j = 0; j < width - 1; j++)
+		{
+			s1 = cvGet2D(&pI_1, i, j);
+			s2 = cvGet2D(&pI_1, i, j + 1);
+			if (((int)s1.val[0]) != ((int)s2.val[0]))
+			{
+				sum_1++;
+				sum_2 = 0;
+			}
+			else
+			{
+				sum_2++;
+			}
+			if (sum_2 > width/5)
+			{
+				sum_1 = 0;
+				break;
+			}
+		}
+		width_2 = i;
+		if (sum_1 >= MAX_CONTINUOUS_PX_NUM)
+		{
+			break;
+		}
+	}
+	if (width_2 <= width_1)
+	{
+		width_2 = height - 1;
+	}
+	dst = cv::Mat(width_2 - width_1 + 1, width, CV_8UC1, 1);
+	pI_2 = dst;
+	for (i = width_1; i <= width_2; i++)
+	{
+		for (j = 0; j < width; j++)
+		{
+			s1 = cvGet2D(&pI_1, i, j);
+			cvSet2D(&pI_2, i - width_1, j, s1);
+		}
+	}
+}
+
+
+/******************************************************************
+Function: ProjectionCalculate(Mat& mat1, int* vArr, int number)
+Description:  计算投影数组
+Calls:
+Called By: Char_Segment(IplImage* Srcimg)
+intput:	param@1 :Mat& mat1		输入二值化后图像
+param@2 :int* vArr		返回的投影数组
+param@3 :int number
+Output:
+Return: vArr 输出投影数组
+******************************************************************/
+void CLocation::ProjectionCalculate(Mat& mat1, int* vArr)
+{
+	IplImage pI_1 = mat1;
+
+	CvScalar s1;
+	int i, j;
+
+	for (i = 0; i < mat1.cols; i++)
+	{
+		vArr[i] = 0;
+	}
+
+	for (i = 0; i < mat1.rows; i++)
+	{
+		for (j = 0; j < mat1.cols; j++)
+		{
+			s1 = cvGet2D(&pI_1, i, j);
+			if (s1.val[0] > 20)
+			{
+				vArr[j]++;
+			}
+		}
+	}
+}
+
+/******************************************************************
+Function: ProjectionCut(int* vArr, int width, int& numofcut)
+Description:  计算返回分割数组，第二维0为开始点，1为结束点横坐标
+Calls:
+Called By: Char_Segment(IplImage* Srcimg)
+intput:	param@1 :int* vArr		投影数组
+param@2 :int width		数组长度（即图片宽度）
+param@3 :int& numofcut	返回分割数目
+Output:
+Return: int& numofcut		引用返回分割数目
+int** pic_cut		直接返回分割数组
+******************************************************************/
+int** CLocation::ProjectionCut(int* vArr, int width, int& numofcut)
+{
+	int i, flag = 0;
+	numofcut = 0;
+	int threshold = 1;//投影阈值
+	int **pic_cut = (int**)malloc(MAX_CUT * sizeof(int *));
+	for (i = 0; i < width - 1; i++)
+	{
+		if ((vArr[i] <= threshold) && (vArr[i + 1] > threshold))
+		{
+			pic_cut[numofcut] = (int*)malloc(2 * sizeof(int));
+			pic_cut[numofcut][0] = i;
+			flag = 1;
+		}
+		else if ((vArr[i] > threshold) && (vArr[i + 1] <= threshold) && (flag != 0))
+		{
+			pic_cut[numofcut][1] = i + 1;
+			numofcut++;
+			if (numofcut >= MAX_CUT)
+			{
+				break;
+			}
+			flag = 0;
+		}
+	}
+	return pic_cut;
 }

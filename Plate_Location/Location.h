@@ -57,8 +57,11 @@ public:
 	void ContourTracking(Mat src);
 	int ContourMarking(int x_start, int y_start,Mat src);
 	bool Color_Contour();
-	bool Blue_Judge(int x, int y);
-	bool White_Judge(int x, int y);
+	bool Blue_Judge(int x, int y, Mat &temp);
+	bool White_Judge(int x, int y, Mat &temp);
+	void DetectionChange(Mat & mat1, Mat & dst);
+	void ProjectionCalculate(Mat & mat1, int * vArr);
+	int ** ProjectionCut(int * vArr, int width, int & numofcut);
 protected:
 
 	//！颜色特征值数组
