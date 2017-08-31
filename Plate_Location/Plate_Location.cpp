@@ -45,7 +45,7 @@ int main()
 	while (!ifs.eof())
 	{
 		getline(ifs, temp);
-		temp = "京A89106.jpg";
+		//temp = "京A89106.jpg";
 		if (temp.size() <= 4)
 			continue;
 		Sum++;
@@ -54,6 +54,7 @@ int main()
 		m_name = tempFirst + temp;
 		Mat srcImage = imread(m_name);
 		Mat dstImg;
+		//粗略的尺寸归一
 		dstImg.create(NORM_WIDTH, NORM_HEIGHT, 16);
 		resize(srcImage, dstImg, dstImg.size(), 0, 0, INTER_CUBIC);
 		CLocation test(srcImage,temp);

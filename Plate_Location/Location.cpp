@@ -28,7 +28,7 @@ CLocation::CLocation(Mat src, string name)
 	/*m_srcImg.create(600, 800, TYPE);
 	resize(src, m_srcImg, m_srcImg.size(), 0, 0, INTER_CUBIC);*/
 	m_srcImg = src.clone();
-	m_deBug = 1;
+	m_deBug = 0;
 	m_ImgName = name;
 	m_dstImg = m_srcImg.clone();
 	m_MorphSizeWidth = DEFAULT_MORPH_SIZE_WIDTH;
@@ -490,8 +490,11 @@ bool CLocation::ContourSearch(Mat src)
 		}
 		
 		threshold(TempDst, TempDst, 0, 255, CV_THRESH_OTSU + CV_THRESH_BINARY); //二值化*/
-		imshow("da", TempDst);
-		waitKey(0);
+		if (m_deBug)
+		{
+			imshow("da", TempDst);
+			waitKey(0);
+		}
 		// 进行车牌特征值计算
  		double Degree = VerticalProjection(TempDst);
 
@@ -569,7 +572,7 @@ double CLocation::VerticalProjection(Mat src)
 	Mat rotateMat = getRotationMatrix2D(center, 180, 1);//旋转矩阵
 	warpAffine(src, src, rotateMat, src.size());//这是我的一个意外发现，目前没找到原因，就是我也不知道为什么在经
 	warpAffine(src, src, rotateMat, src.size());//过两次翻转（理论上相当于没有改变什么）后，分割正确率提高了。
-	imshow("边框分离", src);
+	//imshow("边框分离", src);
 	cvWaitKey(0);
 	int reHeight = 30, reWidth = 100;//归一化处理的size
 	int *vArr = new int[reWidth];//创建投影数组
@@ -668,7 +671,7 @@ double CLocation::VerticalProjection(Mat src)
 		//	1 - 0.6*(abs(7 - LastNum)) / max(7, LastNum) - 0.4*(TempNum / LastNum);
 		m_RuleDegree = 1 - DEGREE_WEIGHT*(abs(DEFAULT_CHAR_NUM - LastNum) *1.0 / max(DEFAULT_CHAR_NUM, LastNum)) - (1 - DEGREE_WEIGHT)*(TempNum *1.0 / LastNum);
 	}
-	cout << LastNum << " " << TempNum << " "<<m_RuleDegree<< endl;
+	//cout << LastNum << " " << TempNum << " "<<m_RuleDegree<< endl;
 	return m_RuleDegree;
 }
 
@@ -803,6 +806,8 @@ bool CLocation::Color_Contour()
 	GaussianBlur(m_srcImg, srcBlur, Size(3, 3), 0, 0, BORDER_DEFAULT);
 	//cvtColor(src, srcHSV, CV_BGR2HSV);
 	int H, S, V;
+
+	//一次遍历统计出每AREASiZE*AREASIZE区域大小内的白色或蓝色像素点个数
 	for (int i = AREASIZE; i < m_rows; i++)
 	{
 		for (int j = AREASIZE; j < m_cols; j++)
@@ -833,17 +838,11 @@ bool CLocation::Color_Contour()
 			if (blue_status&&white_status)
 			{
 				Color_Mark[i][j] = 1;
-				//dst.at<Vec3b>(i , j )[0] = 255;
-				//dst.at<Vec3b>(i , j )[1] = 255;
-				//dst.at<Vec3b>(i , j )[2] = 255;
 				dst.at<uchar>(i, j) = 255;
 			}
 			else
 			{
 				Color_Mark[i][j] = 0;
-				//dst.at<Vec3b>(i, j)[0] = 0;
-				//dst.at<Vec3b>(i, j)[1] = 0;
-				//dst.at<Vec3b>(i, j)[2] = 0;
 			}
 		}
 	}
@@ -882,6 +881,12 @@ bool CLocation::Color_Contour()
 
 }
 
+/**
+* Mat &temp 需要判断的图像
+* x 需要判断点的x坐标
+* y 需要判断点的y坐标
+* return 该点是否是蓝色像素点
+*/
 bool CLocation::Blue_Judge(int x, int y, Mat &temp)
 {
 	double b = (double)temp.at<Vec3b>(x, y)[0];
@@ -904,6 +909,12 @@ bool CLocation::Blue_Judge(int x, int y, Mat &temp)
 	return false;
 }
 
+/**
+* Mat &temp 需要判断的图像
+* x 需要判断点的x坐标
+* y 需要判断点的y坐标
+* return 该点是否是白色像素点
+*/
 bool CLocation::White_Judge(int x, int y,Mat &temp)
 {
 	double b = (double)temp.at<Vec3b>(x, y)[0];
