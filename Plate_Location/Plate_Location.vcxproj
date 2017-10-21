@@ -149,15 +149,17 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="HistProj.h" />
     <ClInclude Include="Location.h" />
-    <ClInclude Include="SeqCapture.h" />
+    <ClInclude Include="Region_Seg.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="HistProj.cpp" />
     <ClCompile Include="Location.cpp" />
     <ClCompile Include="Plate_Location.cpp" />
-    <ClCompile Include="SeqCapture.cpp" />
+    <ClCompile Include="Region_Seg.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

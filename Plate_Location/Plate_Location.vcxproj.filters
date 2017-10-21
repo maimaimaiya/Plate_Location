@@ -27,7 +27,10 @@
     <ClInclude Include="Location.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="SeqCapture.h">
+    <ClInclude Include="HistProj.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Region_Seg.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
@@ -41,7 +44,10 @@
     <ClCompile Include="Location.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="SeqCapture.cpp">
+    <ClCompile Include="HistProj.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Region_Seg.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

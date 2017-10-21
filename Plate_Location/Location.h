@@ -62,6 +62,8 @@ public:
 	void DetectionChange(Mat & mat1, Mat & dst);
 	void ProjectionCalculate(Mat & mat1, int * vArr);
 	int ** ProjectionCut(int * vArr, int width, int & numofcut);
+	Mat GetResultImage();
+	void SetResultImage(Mat img);
 protected:
 
 	//！颜色特征值数组
@@ -117,6 +119,7 @@ protected:
 private:
 	Mat m_srcImg;
 	Mat m_dstImg;
+	Mat ResultImage;
 	//！宽高
 	int m_cols;
 	int m_rows;

@@ -6,8 +6,8 @@
 // Author:	    帅鹏举
 // Desciption:  
 // Defines CPlateLocate
-// 修改时间：2017-4-14
-// 修改内容：基于颜色空间的定位
+// 修改时间：2017-10-21
+// 修改内容：showResultMat中修改在原图的裁剪尺寸，使结果裁剪的更大
 //////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
@@ -50,7 +50,7 @@ CLocation::CLocation(Mat src, string name)
 	m_CharNum = 0;
 	m_RuleDegree = 0;
 	//输出储存地址
-	m_OutAddressFirst = "./src/Img_out/";
+	m_OutAddressFirst = "./src/out/";
 	//地址+文件名
 	strcpy(m_OutAddress, (m_OutAddressFirst + m_ImgName).c_str());
 	m_aimWeight = AIM_WEIGHT;
@@ -227,7 +227,8 @@ void CLocation::_AdaptiveFindThreshold(CvMat *dx, CvMat *dy, double *low, double
 Mat CLocation::showResultMat(Mat src, Size rect_size, Point2f center, int index)
 {
 	Mat img_crop;
-
+	rect_size.width += 20;
+	rect_size.height += 10;  //修改在原图上裁剪的尺寸
 	getRectSubPix(src, rect_size, center, img_crop);
 
 	Mat resultResized;
@@ -296,7 +297,7 @@ bool CLocation::ColorFeatureExtraction()
 	if (m_deBug)
 	{
 		imshow("颜色+Sobel二值化", dst);
-		cvWaitKey(0);
+ 		cvWaitKey(0);
 	}
 
 	dst = Morphological(dst); //形态学处理
@@ -489,7 +490,7 @@ bool CLocation::ContourSearch(Mat src)
 			}
 		}
 		
-		threshold(TempDst, TempDst, 0, 255, CV_THRESH_OTSU + CV_THRESH_BINARY); //二值化*/
+		threshold(TempDst, TempDst, 0, 255, CV_THRESH_OTSU | CV_THRESH_BINARY); //二值化*/
 		if (m_deBug)
 		{
 			imshow("da", TempDst);
@@ -514,11 +515,12 @@ bool CLocation::ContourSearch(Mat src)
 		}
 	}
 	//imshow("Last", resultVec[LastKey]);
-	if ((DegreeMax != -1 || LastKey != -1 )&& DegreeMax>0.2)
+	if ((DegreeMax != -1 || LastKey != -1 )/*&& DegreeMax>0.2*/)
 	{
 		imwrite(m_OutAddress, resultVec[LastKey]);
 		//IplImage qImg = IplImage(resultVec[LastKey]); // cv::Mat -> IplImage
 		//cvSaveImage(m_OutAddress, &qImg);
+		SetResultImage(resultVec[LastKey]);
 		vector< vector< Point> >().swap(contours);
 		vector< RotatedRect >().swap(rects);
 		vector< Mat >().swap(resultVec);
@@ -567,7 +569,7 @@ bool CLocation::verifySizes(RotatedRect mr)
 
 double CLocation::VerticalProjection(Mat src)
 {
-	DetectionChange(src, src);//去边框
+	/*DetectionChange(src, src);//去边框
 	Point2f center = Point2f(src.cols / 2, src.rows / 2);  // 旋转中心
 	Mat rotateMat = getRotationMatrix2D(center, 180, 1);//旋转矩阵
 	warpAffine(src, src, rotateMat, src.size());//这是我的一个意外发现，目前没找到原因，就是我也不知道为什么在经
@@ -599,7 +601,7 @@ double CLocation::VerticalProjection(Mat src)
 		delete[] vArr;
 		free(pic_Arr);
 		return pic_ArrNumber;
-	}*/
+	}
 	int LastNum = pic_ArrNumber;
 	int TempNum = 0;
 	double wid = reWidth / 10;
@@ -610,45 +612,52 @@ double CLocation::VerticalProjection(Mat src)
 		{
 			LastNum--;
 			continue;
-		}*/
+		}
 		if (pic_width < wid / 4)
 			LastNum--;
 		else if (pic_width < wid / 3 || pic_width > wid * 1.5)
 			TempNum++;
 	}
+	*/
 
 
-/*
 	m_Projection = new int[src.cols]();
 	//memset(m_Projection, 0, sizeof(m_Projection));
 	for (int j = 1; j < src.cols; j++)
 	{
 		//舍弃上下20% 只取中间60%做统计
-		for (int i = 1 + 0.1*src.rows; i < src.rows*(1 - 0.25); i++)
+		for (int i = 1 + 0.2*src.rows; i < src.rows*(1 - 0.20); i++)
 		{
 			if ((int)src.at<uchar>(i, j) > 0)
 			{
 				m_Projection[j]++;
 			}
 		}
-		cout << m_Projection[j];
+		//cout << m_Projection[j];
 	}
-	cout << endl;
+	//cout << endl;
 	bool CharState = false;
 	int *m_CharWidth = new int[src.cols]();
 	m_CharNum = 0;
 	//统计字符个数
-	for (int i = 1; i < src.cols; i++)
+	int Zero_num = 1;
+	for (int i = 0; i < src.cols; i++)
 	{
 		if (m_Projection[i] != 0 && !CharState)
 		{
 			CharState = true;
 		}
-		else if (!m_Projection[i] && CharState)
+		else if (m_Projection[i] == 0 && CharState && (Zero_num >= 3||i>=src.cols-3))
 		{
+			m_CharWidth[m_CharNum] -= Zero_num;
 			m_CharNum++;
 			CharState = false;
+			Zero_num = 1;
 		}
+		else if (m_Projection[i] == 0 && CharState)
+			Zero_num++;
+		else if (m_Projection[i] != 0 && CharState)
+			Zero_num = 0;
 		if (CharState)
 			m_CharWidth[m_CharNum]++;
 	}
@@ -661,7 +670,8 @@ double CLocation::VerticalProjection(Mat src)
 			LastNum--;
 		else if (m_CharWidth[i] < wid / 3 || m_CharWidth[i] > wid * 1.5)
 			TempNum++;
-	}*/
+		//cout << m_CharWidth[i] << " ";
+	}
 	
   	if (LastNum < 5)
 		m_RuleDegree = 0;
@@ -1106,4 +1116,14 @@ int** CLocation::ProjectionCut(int* vArr, int width, int& numofcut)
 		}
 	}
 	return pic_cut;
+}
+
+void CLocation::SetResultImage(Mat img)
+{
+	ResultImage = img;
+}
+
+Mat CLocation::GetResultImage()
+{
+	return ResultImage;
 }
